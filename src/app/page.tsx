@@ -1,95 +1,115 @@
-import Image from 'next/image'
-import styles from './page.module.css'
+"use client";
+
+import { useEffect, useState } from "react";
+import { WebviewWindow } from "@tauri-apps/api/window";
+import { emit, listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/tauri";
 
 export default function Home() {
+  const [appWindow, setAppWindow] = useState<WebviewWindow>();
+  const [greeting, setGreeting] = useState<string>();
+
+  async function setupAppWindow() {
+    const appWindow = (await import("@tauri-apps/api/window")).appWindow;
+    setAppWindow(appWindow);
+  }
+
+  useEffect(() => {
+    setupAppWindow();
+    const unlisten = listen("tauri://file-drop", (event) => {
+      // event.event is the event name (useful if you want to use a single callback fn for multiple event types)
+      // event.payload is the payload object
+      console.log("Event:", event.payload);
+    });
+
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, []);
+
+  const handleOpenWindow = () => {
+    const webview = new WebviewWindow("google", {
+      url: "https://www.google.com",
+    });
+    webview.once("tauri://created", () => {
+      console.log("window created");
+    });
+  };
+
+  const handleSendEvent = () => {
+    emit("test", {
+      theMessage: "Tauri is awesome!",
+    });
+  };
+
+  const handleInvokeCommand = async () => {
+    try {
+      const result = await invoke<string>("greet");
+      setGreeting(result);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   return (
-    <main className={styles.main}>
-      <div className={styles.description}>
-        <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>src/app/page.tsx</code>
-        </p>
-        <div>
-          <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
+    <>
+      <h1>Window label: {appWindow?.label}</h1>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          gap: "2em",
+          marginTop: "1em",
+          padding: "1em",
+          flexWrap: "wrap",
+        }}
+      >
+        <button style={styles.button} onClick={handleOpenWindow}>
+          Open new window
+        </button>
+        <button style={styles.button} onClick={() => appWindow?.maximize()}>
+          Maximize
+        </button>
+        <button
+          style={styles.button}
+          onClick={() => appWindow?.toggleMaximize()}
+        >
+          Toggle Maximize
+        </button>
+        <button style={styles.button} onClick={() => appWindow?.minimize()}>
+          Minimize
+        </button>
+        <button style={styles.button} onClick={handleSendEvent}>
+          Send event
+        </button>
       </div>
-
-      <div className={styles.center}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          gap: "2em",
+          marginTop: "1em",
+          padding: "1em",
+          flexWrap: "wrap",
+        }}
+      >
+        <button style={styles.button} onClick={handleInvokeCommand}>
+          Invoke command
+        </button>
+        <span>{greeting}</span>
       </div>
-
-      <div className={styles.grid}>
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Docs <span>-&gt;</span>
-          </h2>
-          <p>Find in-depth information about Next.js features and API.</p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Learn <span>-&gt;</span>
-          </h2>
-          <p>Learn about Next.js in an interactive course with&nbsp;quizzes!</p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Templates <span>-&gt;</span>
-          </h2>
-          <p>Explore starter templates for Next.js.</p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Deploy <span>-&gt;</span>
-          </h2>
-          <p>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
-  )
+    </>
+  );
 }
+
+const styles = {
+  button: {
+    color: "white",
+    background: "green",
+    borderRadius: "4px",
+    fontSize: "1.2em",
+    border: "none",
+    padding: "0.5em",
+    minWidth: "100px",
+  },
+};
